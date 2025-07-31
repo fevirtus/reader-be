@@ -3,24 +3,6 @@ from typing import Optional
 from datetime import datetime
 
 
-class UserRegister(BaseModel):
-    email: EmailStr
-    password: str
-    username: str
-
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class UserProfile(BaseModel):
-    username: str
-    email: EmailStr
-    avatar_url: Optional[str] = None
-    bio: Optional[str] = None
-
-
 class UserProfileUpdate(BaseModel):
     username: Optional[str] = None
     avatar_url: Optional[str] = None
@@ -38,13 +20,6 @@ class UserProfileResponse(BaseModel):
     
     class Config:
         from_attributes = True
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    user: UserProfileResponse
 
 
 class SessionResponse(BaseModel):
