@@ -40,12 +40,12 @@ def test_real_oauth_flow():
     
     if url_state == state:
         print(f"✅ State parameter correctly included: {url_state}")
-    else:
+        else:
         print(f"❌ State parameter missing or incorrect")
         print(f"   Expected: {state}")
         print(f"   Got: {url_state}")
         return False
-    
+
     # Test 2: Mở browser để test thực tế
     print("\n🌐 Opening browser for real OAuth test...")
     print("   This will open Google OAuth in your browser.")
@@ -92,7 +92,7 @@ def test_callback_manual():
     if not code:
         print("Skipping manual callback test")
         return True
-    
+
     print(f"Testing callback with code: {code[:20]}...")
     
     try:

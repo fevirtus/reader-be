@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     email VARCHAR(255) UNIQUE NOT NULL,
     avatar_url VARCHAR(500),
     bio TEXT,
+    role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -17,9 +18,9 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 CREATE TABLE IF NOT EXISTS novels (
     id BIGSERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
-    author VARCHAR(255) NOT NULL,
-    description TEXT,
-    cover_image VARCHAR(500),
+    author VARCHAR(255) DEFAULT '',
+    description TEXT DEFAULT '',
+    cover_image VARCHAR(500) DEFAULT '',
     status VARCHAR(50) DEFAULT 'ongoing',
     total_chapters INTEGER DEFAULT 0,
     views INTEGER DEFAULT 0,
@@ -111,6 +112,33 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Tạo function để cập nhật total_chapters của novel
+CREATE OR REPLACE FUNCTION update_novel_total_chapters()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE novels 
+        SET total_chapters = (
+            SELECT COUNT(*) 
+            FROM chapters 
+            WHERE novel_id = NEW.novel_id
+        )
+        WHERE id = NEW.novel_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE novels 
+        SET total_chapters = (
+            SELECT COUNT(*) 
+            FROM chapters 
+            WHERE novel_id = OLD.novel_id
+        )
+        WHERE id = OLD.novel_id;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Tạo function để cập nhật reading progress
 CREATE OR REPLACE FUNCTION update_reading_progress(
     p_user_id UUID,
@@ -139,6 +167,53 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Tạo function để tính rating trung bình của novel
+CREATE OR REPLACE FUNCTION calculate_novel_rating(novel_id BIGINT)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE novels 
+    SET rating = (
+        SELECT COALESCE(AVG(rating), 0)
+        FROM novel_ratings 
+        WHERE novel_id = $1
+    )
+    WHERE id = novel_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Tạo function để kiểm tra user có role admin không
+CREATE OR REPLACE FUNCTION is_admin(user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM user_profiles 
+        WHERE id = user_id AND role = 'admin'
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Tạo function để thay đổi role của user
+CREATE OR REPLACE FUNCTION change_user_role(target_user_id UUID, new_role VARCHAR)
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- Chỉ admin mới có thể thay đổi role
+    IF NOT is_admin(auth.uid()) THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Chỉ cho phép role 'user' hoặc 'admin'
+    IF new_role NOT IN ('user', 'admin') THEN
+        RETURN FALSE;
+    END IF;
+    
+    UPDATE user_profiles 
+    SET role = new_role, updated_at = NOW()
+    WHERE id = target_user_id;
+    
+    RETURN FOUND;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Tạo function để auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -148,31 +223,57 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Tạo triggers cho tất cả tables
-CREATE TRIGGER update_novels_updated_at 
-    BEFORE UPDATE ON novels 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_chapters_updated_at 
-    BEFORE UPDATE ON chapters 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_user_profiles_updated_at 
-    BEFORE UPDATE ON user_profiles 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_reading_progress_updated_at 
-    BEFORE UPDATE ON reading_progress 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_user_sessions_updated_at 
-    BEFORE UPDATE ON user_sessions 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
+-- Tạo triggers cho tất cả tables (với IF NOT EXISTS)
+DO $$ 
+BEGIN
+    -- Trigger cho novels
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_novels_updated_at') THEN
+        CREATE TRIGGER update_novels_updated_at 
+            BEFORE UPDATE ON novels 
+            FOR EACH ROW 
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    -- Trigger cho chapters
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_chapters_updated_at') THEN
+        CREATE TRIGGER update_chapters_updated_at 
+            BEFORE UPDATE ON chapters 
+            FOR EACH ROW 
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    -- Trigger cho user_profiles
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_user_profiles_updated_at') THEN
+        CREATE TRIGGER update_user_profiles_updated_at 
+            BEFORE UPDATE ON user_profiles 
+            FOR EACH ROW 
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    -- Trigger cho reading_progress
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_reading_progress_updated_at') THEN
+        CREATE TRIGGER update_reading_progress_updated_at 
+            BEFORE UPDATE ON reading_progress 
+            FOR EACH ROW 
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    -- Trigger cho user_sessions
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_user_sessions_updated_at') THEN
+        CREATE TRIGGER update_user_sessions_updated_at 
+            BEFORE UPDATE ON user_sessions 
+            FOR EACH ROW 
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    -- Trigger để tự động cập nhật total_chapters
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_novel_total_chapters_trigger') THEN
+        CREATE TRIGGER update_novel_total_chapters_trigger
+            AFTER INSERT OR DELETE ON chapters
+            FOR EACH ROW
+            EXECUTE FUNCTION update_novel_total_chapters();
+    END IF;
+END $$;
 
 -- Tạo RLS (Row Level Security) policies
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
@@ -183,81 +284,133 @@ ALTER TABLE bookshelf ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Policy cho user_profiles - cho phép insert khi đăng ký
+DROP POLICY IF EXISTS "Users can view their own profile" ON user_profiles;
 CREATE POLICY "Users can view their own profile" ON user_profiles
     FOR SELECT USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update their own profile" ON user_profiles;
 CREATE POLICY "Users can update their own profile" ON user_profiles
     FOR UPDATE USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can insert their own profile" ON user_profiles;
 CREATE POLICY "Users can insert their own profile" ON user_profiles
     FOR INSERT WITH CHECK (auth.uid() = id);
 
--- Policy đặc biệt cho việc đăng ký - cho phép insert profile cho user mới
+DROP POLICY IF EXISTS "Allow registration insert" ON user_profiles;
 CREATE POLICY "Allow registration insert" ON user_profiles
     FOR INSERT WITH CHECK (true);
 
--- Policy cho novels - public read, authenticated write
+-- Policy cho novels - public read, admin/user write
+DROP POLICY IF EXISTS "Allow public read access to novels" ON novels;
 CREATE POLICY "Allow public read access to novels" ON novels
     FOR SELECT USING (true);
 
-CREATE POLICY "Allow authenticated users to create novels" ON novels
-    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow admin users to create novels" ON novels;
+CREATE POLICY "Allow admin users to create novels" ON novels
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
 
-CREATE POLICY "Allow authenticated users to update novels" ON novels
-    FOR UPDATE USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow admin users to update novels" ON novels;
+CREATE POLICY "Allow admin users to update novels" ON novels
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
 
-CREATE POLICY "Allow authenticated users to delete novels" ON novels
-    FOR DELETE USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow admin users to delete novels" ON novels;
+CREATE POLICY "Allow admin users to delete novels" ON novels
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
 
--- Policy cho chapters - public read, authenticated write
+-- Policy cho chapters - public read, admin/user write
+DROP POLICY IF EXISTS "Allow public read access to chapters" ON chapters;
 CREATE POLICY "Allow public read access to chapters" ON chapters
     FOR SELECT USING (true);
 
-CREATE POLICY "Allow authenticated users to create chapters" ON chapters
-    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow admin users to create chapters" ON chapters;
+CREATE POLICY "Allow admin users to create chapters" ON chapters
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
 
-CREATE POLICY "Allow authenticated users to update chapters" ON chapters
-    FOR UPDATE USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow admin users to update chapters" ON chapters;
+CREATE POLICY "Allow admin users to update chapters" ON chapters
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
 
-CREATE POLICY "Allow authenticated users to delete chapters" ON chapters
-    FOR DELETE USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow admin users to delete chapters" ON chapters;
+CREATE POLICY "Allow admin users to delete chapters" ON chapters
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() AND role = 'admin'
+        )
+    );
 
 -- Policy cho reading_progress - users can only access their own
+DROP POLICY IF EXISTS "Users can view their own reading progress" ON reading_progress;
 CREATE POLICY "Users can view their own reading progress" ON reading_progress
     FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own reading progress" ON reading_progress;
 CREATE POLICY "Users can insert their own reading progress" ON reading_progress
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own reading progress" ON reading_progress;
 CREATE POLICY "Users can update their own reading progress" ON reading_progress
     FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own reading progress" ON reading_progress;
 CREATE POLICY "Users can delete their own reading progress" ON reading_progress
     FOR DELETE USING (auth.uid() = user_id);
 
 -- Policy cho bookshelf - users can only access their own
+DROP POLICY IF EXISTS "Users can view their own bookshelf" ON bookshelf;
 CREATE POLICY "Users can view their own bookshelf" ON bookshelf
     FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can add to their own bookshelf" ON bookshelf;
 CREATE POLICY "Users can add to their own bookshelf" ON bookshelf
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can remove from their own bookshelf" ON bookshelf;
 CREATE POLICY "Users can remove from their own bookshelf" ON bookshelf
     FOR DELETE USING (auth.uid() = user_id);
 
 -- Policy cho user_sessions - users can only access their own
+DROP POLICY IF EXISTS "Users can view their own sessions" ON user_sessions;
 CREATE POLICY "Users can view their own sessions" ON user_sessions
     FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create their own sessions" ON user_sessions;
 CREATE POLICY "Users can create their own sessions" ON user_sessions
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own sessions" ON user_sessions;
 CREATE POLICY "Users can delete their own sessions" ON user_sessions
     FOR DELETE USING (auth.uid() = user_id);
 
 -- Insert sample data (optional)
-INSERT INTO novels (title, author, description, status) VALUES
-('Tu Tiên Giới', 'Tác giả A', 'Truyện tu tiên đỉnh cao', 'ongoing'),
-('Võ Đế Trọng Sinh', 'Tác giả B', 'Truyện võ hiệp trọng sinh', 'completed'),
-('Thành Thần Chi Lộ', 'Tác giả C', 'Truyện thành thần', 'ongoing')
+INSERT INTO novels (title, author, description, cover_image, status, total_chapters, views, rating) VALUES
+('Tu Tiên Giới', 'Tác giả A', 'Truyện tu tiên đỉnh cao', '', 'ongoing', 0, 0, 0),
+('Võ Đế Trọng Sinh', 'Tác giả B', 'Truyện võ hiệp trọng sinh', '', 'completed', 0, 0, 0),
+('Thành Thần Chi Lộ', 'Tác giả C', 'Truyện thành thần', '', 'ongoing', 0, 0, 0),
+('Ai Bảo Hắn Tu Tiên', '', '', '', 'ongoing', 0, 0, 0)
 ON CONFLICT DO NOTHING; 

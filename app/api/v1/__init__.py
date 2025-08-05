@@ -5,6 +5,9 @@ from .auth import router as auth_router
 from .user import router as user_router
 from .reading import router as reading_router
 from .oauth import router as oauth_router
+from .sync import router as sync_router
+from .admin import router as admin_router
+from .cache import router as cache_router
 
 api_router = APIRouter()
 
@@ -14,3 +17,6 @@ api_router.include_router(auth_router, prefix="/auth", tags=["authentication"])
 api_router.include_router(user_router, prefix="/user", tags=["user"])
 api_router.include_router(reading_router, prefix="/reading", tags=["reading"])
 api_router.include_router(oauth_router, prefix="/oauth", tags=["oauth"]) 
+api_router.include_router(sync_router, prefix="/sync", tags=["sync"])
+api_router.include_router(admin_router, prefix="/admin", tags=["admin"])
+api_router.include_router(cache_router, prefix="/cache", tags=["cache"]) 

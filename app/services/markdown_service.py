@@ -9,16 +9,37 @@ class MarkdownService:
         self.storage_path = settings.storage_path
         self.md = markdown.Markdown(extensions=['extra', 'codehilite'])
     
-    def read_markdown_file(self, file_path: str) -> Optional[str]:
+    def read_markdown_file(self, file_path: str, novel_title: str = None) -> Optional[str]:
         """Đọc nội dung từ file markdown"""
         try:
-            full_path = os.path.join(self.storage_path, file_path)
-            if not os.path.exists(full_path):
+            if not os.path.exists(self.storage_path):
+                print(f"Storage path not found: {self.storage_path}")
                 return None
             
-            with open(full_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            return content
+            # Nếu có novel_title, tìm trong directory cụ thể
+            if novel_title:
+                novel_path = os.path.join(self.storage_path, novel_title)
+                full_path = os.path.join(novel_path, file_path)
+                if os.path.exists(full_path):
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    return content
+                else:
+                    print(f"File not found: {full_path}")
+                    return None
+            
+            # Nếu không có novel_title, tìm trong tất cả directories
+            for novel_dir in os.listdir(self.storage_path):
+                novel_path = os.path.join(self.storage_path, novel_dir)
+                if os.path.isdir(novel_path):
+                    full_path = os.path.join(novel_path, file_path)
+                    if os.path.exists(full_path):
+                        with open(full_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        return content
+            
+            print(f"File not found: {file_path}")
+            return None
         except Exception as e:
             print(f"Error reading markdown file: {e}")
             return None
