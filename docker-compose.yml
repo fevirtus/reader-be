@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   reader-backend:
-    build: .
     container_name: reader-backend
+    image: fevirtus/reader-be:latest
     ports:
       - "8000:8000"
     environment:
@@ -12,8 +10,16 @@ services:
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - DATABASE_URL=${DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
       - DEBUG=${DEBUG:-False}
-      - STORAGE_PATH=/app/storage/novels
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - STORAGE_PATH=${STORAGE_PATH}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - OAUTH_ENABLED=${OAUTH_ENABLED}
+      - OAUTH_PROVIDERS=${OAUTH_PROVIDERS}
     volumes:
       - ./storage:/app/storage
       - ./logs:/app/logs
@@ -33,4 +39,4 @@ networks:
 
 volumes:
   storage:
-    driver: local 
+    driver: local
