@@ -20,8 +20,8 @@ RUN apt-get update \
 # Install uv
 RUN pip install uv
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
+# Copy dependency files and README
+COPY pyproject.toml uv.lock README.md ./
 
 # Install dependencies
 RUN uv sync --frozen
@@ -30,7 +30,7 @@ RUN uv sync --frozen
 COPY . .
 
 # Create storage directory
-RUN mkdir -p storage/novels
+RUN mkdir -p storage
 
 # Create non-root user
 RUN adduser --disabled-password --gecos '' appuser \
