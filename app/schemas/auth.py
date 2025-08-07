@@ -15,6 +15,7 @@ class UserProfileResponse(BaseModel):
     email: str
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
+    role: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     

@@ -135,7 +135,7 @@ class OAuthService:
             print(f"🔍 Looking for existing user with email: {email}")
             
             # Lấy user profile
-            profile_response = self.auth_service.supabase.table('user_profiles').select('*').eq('email', email).execute()
+            profile_response = self.auth_service.supabase_admin.table('user_profiles').select('*').eq('email', email).execute()
             print(f"Profile response: {profile_response.data}")
             
             if profile_response.data:

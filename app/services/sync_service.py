@@ -14,7 +14,7 @@ class SyncService:
             settings.supabase_url,
             settings.supabase_service_role_key
         )
-        self.storage_path = Path("storage/novels")
+        self.storage_path = Path(settings.storage_path)
     
     def scan_novels_directory(self) -> List[Dict]:
         """Quét thư mục storage/novels/ để tìm các novel"""

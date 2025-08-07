@@ -9,7 +9,8 @@ Backend API cho webapp đọc truyện với Supabase, hỗ trợ OAuth authenti
 - **📊 Reading Progress**: Theo dõi tiến độ đọc cho từng user
 - **📚 Bookshelf**: Tủ sách cá nhân cho user
 - **🔄 Auto Sync**: Tự động sync novels từ storage/novels/ mỗi giờ
-- **📝 Markdown Support**: Lưu trữ nội dung chapter dưới dạng markdown
+- **📝 Content Support**: Lưu trữ nội dung chapter dưới dạng HTML
+- **📚 EPUB Upload**: Admin có thể upload EPUB files để tạo novel tự động
 - **🔒 Security**: Row Level Security (RLS) với Supabase
 - **🐳 Docker Support**: Containerized với Docker và Docker Compose
 
@@ -19,7 +20,7 @@ Backend API cho webapp đọc truyện với Supabase, hỗ trợ OAuth authenti
 - **Supabase**: Backend-as-a-Service (PostgreSQL, Auth, Storage)
 - **Pydantic**: Data validation và serialization
 - **Docker**: Containerization
-- **Markdown**: Content storage format
+- **HTML**: Content storage format
 
 ## 📋 Prerequisites
 

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     allowed_hosts: List[str] = ["*"]
     
     # File Storage
-    storage_path: str = "./storage/novels"
+    storage_path: str = "./storage"
     
     # Google OAuth Configuration
     google_client_id: str = ""

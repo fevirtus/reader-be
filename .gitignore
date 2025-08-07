@@ -9,4 +9,4 @@ __pycache__/
 .coverage
 .coverage.*
 .coverage.*.*
-storage/novels/*
+storage/*

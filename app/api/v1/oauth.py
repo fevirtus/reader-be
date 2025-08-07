@@ -35,7 +35,9 @@ async def google_callback(
         result = await oauth_service.handle_google_callback(code)
         
         # Redirect về frontend với session token
+        print(f"🔗 Redirecting to frontend with session token: {result['session_token']}")
         frontend_url = f"{settings.frontend_redirect_uri}?session_token={result['session_token']}&is_new_user={result['is_new_user']}"
+        print(f"🔗 Frontend URL: {frontend_url}")
         
         return RedirectResponse(url=frontend_url)
     except Exception as e:
